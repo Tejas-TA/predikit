@@ -42,10 +42,10 @@ class TestSnowflakeShim:
         assert result[0] == pytest.approx(0.27, abs=1e-6)
 
     def test_classes_optional(self):
-        shim_no_classes = _SnowflakeShim(MagicMock())
+        shim_no_classes = _SnowflakeShim(MagicMock(spec=["predict"]))
         assert not hasattr(shim_no_classes, "classes_")
 
-        shim_with_classes = _SnowflakeShim(MagicMock(), classes=[0, 1])
+        shim_with_classes = _SnowflakeShim(MagicMock(spec=["predict"]), classes=[0, 1])
         assert shim_with_classes.classes_ == [0, 1]
 
     def test_predict_flattens_dataframe_result(self):
@@ -65,6 +65,17 @@ class TestSnowflakeShim:
         result = shim.predict(np.array([[1.0]]))
         assert result.ndim == 1
         assert result[0] == pytest.approx(0.73)
+
+    def test_predict_proba_delegates_to_underlying_model(self):
+        mock_model = MagicMock()
+        mock_model.predict_proba.return_value = np.array([[0.2, 0.8]])
+        shim = _SnowflakeShim(mock_model)
+
+        result = shim.predict_proba(np.array([[1.0, 2.0, 3.0]]))
+
+        mock_model.predict_proba.assert_called_once()
+        assert result.shape == (1, 2)
+        assert result[0, 1] == pytest.approx(0.8)
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +157,35 @@ class TestFromSnowflake:
         result = tool.invoke({"tenure_months": 12.0, "trips_last_year": 5.0, "avg_spend": 300.0})
         assert result["score"] == pytest.approx(0.87, abs=1e-6)
         mock_sf_model.score.assert_called_once()
+
+    def test_confidence_routing_uses_predict_proba(self):
+        mock_session = MagicMock()
+        mock_sf_model = MagicMock()
+        mock_sf_model.predict.return_value = np.array([1])
+        mock_sf_model.predict_proba.return_value = np.array([[0.6, 0.4]])
+        mock_sf_model.classes_ = [0, 1]
+
+        with patch("predikit.loaders.snowflake.Registry") as MockRegistry:
+            MockRegistry.return_value.get_model.return_value.version.return_value = mock_sf_model
+
+            tool = from_snowflake(
+                session=mock_session,
+                model_name="CHURN",
+                model_version="V1",
+                name="churn",
+                description="Churn.",
+                input_schema=MemberInput,
+                output_name="churn_class",
+                output_description="Churn class",
+                confidence_threshold=0.9,
+                on_low_confidence="warn",
+            )
+
+        result = tool.invoke({"tenure_months": 12.0, "trips_last_year": 5.0, "avg_spend": 300.0})
+        assert result["churn_class"] == 1
+        assert result["_low_confidence"] is True
+        assert result["_confidence"] == pytest.approx(0.6)
+        mock_sf_model.predict_proba.assert_called_once()
 
     def test_model_tool_kwargs_forwarded(self):
         mock_session, mock_sf_model = _make_mock_session_and_model(np.array([1]))

@@ -25,14 +25,35 @@ class _SnowflakeShim:
             )
         self._model = sf_model
         self._method = output_method
+        underlying = getattr(sf_model, "_model_impl", None)
+        if underlying is not None:
+            underlying = getattr(underlying, "sklearn_model", None)
+
+        if classes is None and underlying is not None and hasattr(underlying, "classes_"):
+            classes = list(underlying.classes_)
+
         if classes is not None:
             self.classes_ = classes
+
+        if underlying is not None:
+            if hasattr(underlying, "feature_names_in_"):
+                self.feature_names_in_ = underlying.feature_names_in_
+            if hasattr(underlying, "n_features_in_"):
+                self.n_features_in_ = underlying.n_features_in_
 
     def predict(self, X: Any) -> np.ndarray:
         result = getattr(self._model, self._method)(X)
         if hasattr(result, "to_numpy"):
             return np.asarray(result.to_numpy()).flatten()
         return np.asarray(result).flatten()
+
+    def predict_proba(self, X: Any) -> np.ndarray:
+        if callable(getattr(self._model, "predict_proba", None)):
+            return np.asarray(self._model.predict_proba(X))
+        raise NotImplementedError(
+            "predict_proba is not available for this Snowflake model object. "
+            "The underlying model may not expose it."
+        )
 
 
 def from_snowflake(
