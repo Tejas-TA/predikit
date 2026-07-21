@@ -5,7 +5,7 @@ import time
 import warnings
 from collections.abc import Callable
 from types import UnionType
-from typing import Any, Union, get_args, get_origin
+from typing import Any, Union, cast, get_args, get_origin
 
 import numpy as np
 from pydantic import BaseModel
@@ -180,7 +180,7 @@ class ModelTool:
 
 def _scalar_type(annotation: Any) -> type | None:
     if annotation in _SCALAR_TYPES:
-        return annotation
+        return cast(type, annotation)
 
     if get_origin(annotation) in (Union, UnionType):
         args = [arg for arg in get_args(annotation) if arg is not _NONE_TYPE]

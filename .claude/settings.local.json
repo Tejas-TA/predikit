@@ -25,7 +25,9 @@
       "Bash(./.venv/Scripts/python.exe -m ruff format --check src/ tests/)",
       "Bash(./.venv/Scripts/python.exe -m mypy src/predikit)",
       "Bash(git stash *)",
-      "Bash(./.venv/Scripts/python.exe -m pytest -q)"
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)",
+      "Bash(./.venv/Scripts/python.exe -c \"import numpy; print\\(numpy.__version__\\); print\\(numpy.__file__\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m mypy --version)"
     ],
     "additionalDirectories": [
       "C:\\AI\\predikit"
