@@ -19,8 +19,12 @@ def to_langchain_tool(tool: ModelTool | ModelEnsemble) -> Any:
     def _run(**kwargs) -> dict:
         return tool.invoke(kwargs)
 
+    async def _arun(**kwargs) -> dict:
+        return await tool.ainvoke(kwargs)
+
     return StructuredTool.from_function(
         func=_run,
+        coroutine=_arun,
         name=tool.name,
         description=tool.description,
         args_schema=tool.input_schema,

@@ -9,7 +9,26 @@
       "PowerShell(python -m mypy src/predikit)",
       "Bash(python -m pytest --tb=short -q)",
       "Bash(uv run *)",
-      "PowerShell(C:\\\\AI\\\\predikit\\\\.venv\\\\Scripts\\\\python.exe -m ensurepip --upgrade)"
+      "PowerShell(C:\\\\AI\\\\predikit\\\\.venv\\\\Scripts\\\\python.exe -m ensurepip --upgrade)",
+      "Bash(gh issue *)",
+      "Bash(gh pr *)",
+      "PowerShell(gh issue list --state open --limit 30 2>&1)",
+      "PowerShell(gh pr list --state open --limit 30 2>&1)",
+      "Bash(sed -n '/Roadmap/,/^---/p' README.md | head -80)",
+      "Bash(python -c \"import langchain_core; print\\(langchain_core.__version__\\)\")",
+      "Bash(pip show *)",
+      "Bash(./.venv/Scripts/python.exe -c \"import langchain_core; print\\(langchain_core.__version__\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest --version)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -m pytest --cov=src/predikit --cov-report=term-missing -q)",
+      "Bash(./.venv/Scripts/python.exe -m ruff check src/ tests/)",
+      "Bash(./.venv/Scripts/python.exe -m ruff format --check src/ tests/)",
+      "Bash(./.venv/Scripts/python.exe -m mypy src/predikit)",
+      "Bash(git stash *)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)"
+    ],
+    "additionalDirectories": [
+      "C:\\AI\\predikit"
     ]
   }
 }

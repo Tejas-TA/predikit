@@ -64,6 +64,17 @@ class ModelTool:
                 UserWarning,
                 stacklevel=2,
             )
+        elif (
+            confidence_threshold is not None
+            and self._meta.get("task") == "classification"
+            and not hasattr(model, "predict_proba")
+        ):
+            warnings.warn(
+                f"confidence_threshold is set on '{name}' but the model has no predict_proba "
+                "method; the threshold will have no effect.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.on_low_confidence = on_low_confidence
         self.fallback_tool = fallback_tool
         self.verbose = verbose

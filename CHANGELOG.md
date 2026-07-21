@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-21
+
+### Added
+- Test coverage for the LangChain exporter (`test_exporters_langchain.py`) — previously untested
+- Warning when `confidence_threshold` is set on a classifier whose model has no `predict_proba` method, mirroring the existing regressor warning
+- Test coverage for both `confidence_threshold` construction-time warnings (regressor, and classifier without `predict_proba`)
+
+### Fixed
+- `to_langchain()` now wires up `ainvoke()` as the LangChain tool's `coroutine`, so async LangChain agents actually get async execution instead of silently falling back to sync
+
 ## [0.5.0] - 2026-07-01
 
 ### Fixed

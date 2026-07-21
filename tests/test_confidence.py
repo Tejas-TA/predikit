@@ -2,6 +2,7 @@ import pytest
 from pydantic import BaseModel
 from sklearn.datasets import load_iris
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.svm import SVC
 
 from predikit import LowConfidenceError, ModelTool
 
@@ -103,3 +104,31 @@ def test_invalid_on_low_confidence_raises_at_construction(clf):
 def test_invalid_confidence_threshold_raises_at_construction(clf):
     with pytest.raises(ValueError, match="confidence_threshold"):
         _make(clf, threshold=1.1, mode="warn")
+
+
+def test_confidence_threshold_on_regressor_warns():
+    reg = LinearRegression().fit(X_iris, y_iris.astype(float))
+    with pytest.warns(UserWarning, match="regressor"):
+        ModelTool(
+            model=reg,
+            name="reg",
+            description="test",
+            input_schema=IrisInput,
+            output_name="value",
+            output_description="value",
+            confidence_threshold=0.9,
+        )
+
+
+def test_confidence_threshold_without_predict_proba_warns():
+    clf_no_proba = SVC(probability=False).fit(X_iris, y_iris)
+    with pytest.warns(UserWarning, match="predict_proba"):
+        ModelTool(
+            model=clf_no_proba,
+            name="svc",
+            description="test",
+            input_schema=IrisInput,
+            output_name="species",
+            output_description="species",
+            confidence_threshold=0.9,
+        )
