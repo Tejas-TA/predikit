@@ -14,7 +14,7 @@ except ImportError:
 
 
 class _SnowflakeShim:
-    """Wraps a Snowflake Model Registry model to look like an sklearn estimator."""
+    """Wrap a Snowflake Model Registry model as an sklearn estimator."""
 
     def __init__(
         self, sf_model: Any, output_method: str = "predict", classes: list | None = None

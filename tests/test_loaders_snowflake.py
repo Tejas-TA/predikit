@@ -25,6 +25,10 @@ class MemberInput(BaseModel):
 
 
 class TestSnowflakeShim:
+    def test_invalid_output_method_raises(self):
+        with pytest.raises(AttributeError, match="no callable method"):
+            _SnowflakeShim(MagicMock(spec=["predict"]), output_method="score")
+
     def test_predict_calls_correct_method(self):
         mock_model = MagicMock()
         mock_model.predict.return_value = np.array([1])

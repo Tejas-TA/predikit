@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "predikit"
-version = "0.5.1"
+version = "0.5.2"
 description = "Wrap any trained sklearn/XGBoost model as an LLM-callable tool: auto-generated JSON schemas, Pydantic I/O, OpenAI & LangChain ready, zero boilerplate."
 readme = "README.md"
 license = {text = "MIT"}

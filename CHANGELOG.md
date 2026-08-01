@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-01
+
+### Fixed
+- Repaired the development lockfile so `uv` can resolve the pinned Colorama artifact.
+- Added repository-wide LF line-ending normalization so Ruff formatting is stable across platforms.
+
+### Added
+- Regression coverage for invalid Snowflake output methods and duplicate registry names.
+- CI package-build verification to catch release artifacts that cannot be built.
+
 ## [0.5.1] - 2026-07-21
 
 ### Added

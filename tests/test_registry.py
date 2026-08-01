@@ -87,3 +87,16 @@ def test_duplicate_tool_names_raise():
     )
     with pytest.raises(ValueError, match="Duplicate"):
         ToolRegistry([tool_a, tool_b])
+
+
+def test_duplicate_tool_and_ensemble_names_raise(registry):
+    tool = registry.get("iris_classifier")
+    ensemble = ModelEnsemble(
+        tools=[tool],
+        name=tool.name,
+        description="Duplicate name",
+        strategy="vote",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate"):
+        ToolRegistry([tool], ensembles=[ensemble])
