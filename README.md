@@ -271,6 +271,20 @@ response = client.chat.completions.create(
 agent = initialize_agent(tools=registry.to_langchain(), ...)
 ```
 
+### MCP server
+
+Expose the same registry to MCP-compatible clients with the optional MCP extra:
+
+```bash
+pip install predikit[mcp]
+predikit serve my_tools:registry
+```
+
+`my_tools:registry` must point to a `ToolRegistry`, or to a zero-argument function
+that returns one. The default transport is `stdio`; use `--transport streamable-http`
+when serving over HTTP. MCP tools use the same Pydantic input validation and model
+execution as direct `invoke()` calls.
+
 ### Bool inputs from an LLM
 
 LLMs sometimes return `"yes"`, `"true"`, or `"1"` for boolean fields. predikit coerces these automatically before Pydantic validation:
@@ -410,7 +424,7 @@ See [`examples/03_orlando_real_estate.py`](examples/03_orlando_real_estate.py) f
 - [ ] HuggingFace / PyTorch / TensorFlow model support
 - [ ] Streaming inference support
 - [ ] OpenAI Assistants API integration
-- [ ] MCP server mode
+- [x] MCP server mode (stdio and Streamable HTTP)
 
 ---
 

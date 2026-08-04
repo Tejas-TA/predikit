@@ -96,3 +96,9 @@ def test_inspect_unnamed_model_skips_schema(runner, unnamed_pkl):
 def test_inspect_missing_file(runner):
     result = runner.invoke(cli, ["inspect", "does_not_exist.pkl"])
     assert result.exit_code != 0
+
+
+def test_serve_requires_module_target(runner):
+    result = runner.invoke(cli, ["serve", "not-a-module-target"])
+    assert result.exit_code != 0
+    assert "MODULE:ATTRIBUTE" in result.output

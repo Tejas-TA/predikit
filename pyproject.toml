@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "predikit"
-version = "0.5.2"
+version = "0.6.0"
 description = "Wrap any trained sklearn/XGBoost model as an LLM-callable tool: auto-generated JSON schemas, Pydantic I/O, OpenAI & LangChain ready, zero boilerplate."
 readme = "README.md"
 license = {text = "MIT"}
@@ -39,6 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.1"]
+mcp = ["mcp>=1.28,<2"]
 xgboost = ["xgboost>=1.7"]
 mlflow = ["mlflow>=2.0"]
 snowflake = ["snowflake-ml-python>=1.0"]

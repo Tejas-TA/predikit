@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import sys
 from typing import Any
@@ -73,6 +74,40 @@ if _CLICK_AVAILABLE:
             click.echo(json.dumps(tool.to_openai(), indent=2))
         else:
             click.echo("\nOpenAI schema: unavailable (fit model with a named DataFrame to enable)")
+
+    @cli.command()
+    @click.argument("registry_target")
+    @click.option("--name", default="predikit", show_default=True, help="MCP server name.")
+    @click.option(
+        "--transport",
+        type=click.Choice(["stdio", "streamable-http"]),
+        default="stdio",
+        show_default=True,
+        help="MCP transport to run.",
+    )
+    def serve(registry_target: str, name: str, transport: str) -> None:
+        """Serve a ToolRegistry from MODULE:ATTRIBUTE over MCP.
+
+        ATTRIBUTE may be a ToolRegistry instance or a zero-argument factory.
+        """
+        if ":" not in registry_target:
+            raise click.ClickException("REGISTRY_TARGET must use the form MODULE:ATTRIBUTE")
+        module_name, attribute_name = registry_target.split(":", 1)
+        try:
+            module = importlib.import_module(module_name)
+            registry = getattr(module, attribute_name)
+            if callable(registry):
+                registry = registry()
+            from .mcp import create_mcp_server
+
+            server = create_mcp_server(registry, name=name)
+            server.run(transport=transport)
+        except ImportError as err:
+            raise click.ClickException(str(err)) from err
+        except AttributeError as err:
+            raise click.ClickException(
+                f"Could not load registry target '{registry_target}'"
+            ) from err
 
 else:
 

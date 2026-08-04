@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-03
+
+### Added
+- MCP server integration via `create_mcp_server()` and `predikit serve`.
+- Optional `mcp` dependency for exposing `ToolRegistry` tools to MCP-compatible clients.
+
 ## [0.5.2] - 2026-08-01
 
 ### Fixed
