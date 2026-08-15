@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "predikit"
-version = "0.6.0"
+version = "0.6.1"
 description = "Wrap any trained sklearn/XGBoost model as an LLM-callable tool: auto-generated JSON schemas, Pydantic I/O, OpenAI & LangChain ready, zero boilerplate."
 readme = "README.md"
 license = {text = "MIT"}
@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
@@ -50,6 +51,7 @@ dev = [
     "xgboost>=1.7",
     "langchain-core>=0.1",
     "pandas>=1.5",
+    "mcp>=1.28,<2",
     "mlflow>=2.0",
     "click>=8.0",
     "joblib>=1.2",

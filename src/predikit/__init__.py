@@ -5,4 +5,4 @@ from .registry import ToolRegistry
 from .tool import ModelTool
 
 __all__ = ["ModelTool", "ToolRegistry", "ModelEnsemble", "LowConfidenceError", "create_mcp_server"]
-__version__ = "0.6.0"
+__version__ = "0.6.1"

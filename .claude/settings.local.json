@@ -27,7 +27,19 @@
       "Bash(git stash *)",
       "Bash(./.venv/Scripts/python.exe -m pytest -q)",
       "Bash(./.venv/Scripts/python.exe -c \"import numpy; print\\(numpy.__version__\\); print\\(numpy.__file__\\)\")",
-      "Bash(./.venv/Scripts/python.exe -m mypy --version)"
+      "Bash(./.venv/Scripts/python.exe -m mypy --version)",
+      "Bash(gh release *)",
+      "Bash(python -c \"import mcp; print\\('mcp', mcp.__version__ if hasattr\\(mcp,'__version__'\\) else 'installed'\\)\")",
+      "Bash(python -c \"import snowflake.ml; print\\('snowflake-ml installed'\\)\")",
+      "Bash(python -m pytest -q --cov=src/predikit --cov-report=term-missing)",
+      "Bash(py -0p)",
+      "Bash(where python *)",
+      "Bash(.venv/Scripts/python.exe -m pytest -q --cov=src/predikit --cov-report=term-missing)",
+      "Bash(command -v uv)",
+      "Bash(.venv/Scripts/python.exe -m pip download 'mcp>=1.28,<2' -d __TRACKED_VAR__/mcpdl --no-deps -q)",
+      "Bash(.venv/Scripts/python.exe -m pip show twine)",
+      "Bash(.venv/Scripts/python.exe -m pip install -q -U twine)",
+      "Bash(.venv/Scripts/python.exe -m twine check dist/*0.6.1*)"
     ],
     "additionalDirectories": [
       "C:\\AI\\predikit"

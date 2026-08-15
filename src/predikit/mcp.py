@@ -5,14 +5,24 @@ from __future__ import annotations
 import inspect
 from typing import Any, cast
 
+from pydantic import ConfigDict, Field, create_model
+
 from .registry import ToolRegistry
 
 
-def create_mcp_server(registry: ToolRegistry, name: str = "predikit") -> Any:
+def create_mcp_server(
+    registry: ToolRegistry,
+    name: str = "predikit",
+    host: str | None = None,
+    port: int | None = None,
+) -> Any:
     """Create an MCP server exposing every tool in ``registry``.
 
     The MCP dependency is optional. Install it with ``pip install predikit[mcp]``.
     The returned server uses the SDK's standard transports, including ``stdio``.
+
+    ``host`` and ``port`` configure the HTTP transports; leave them unset to keep
+    the MCP SDK defaults (``127.0.0.1:8000``).
     """
     try:
         from mcp.server.fastmcp import FastMCP
@@ -22,8 +32,14 @@ def create_mcp_server(registry: ToolRegistry, name: str = "predikit") -> Any:
             "Install it with: pip install predikit[mcp]"
         ) from err
 
-    server = FastMCP(name, json_response=True)
-    for tool in _registry_items(registry):
+    settings: dict[str, Any] = {"json_response": True}
+    if host is not None:
+        settings["host"] = host
+    if port is not None:
+        settings["port"] = port
+
+    server = FastMCP(name, **settings)
+    for tool in registry.items():
         server.add_tool(
             _make_mcp_callable(tool),
             name=tool.name,
@@ -32,9 +48,34 @@ def create_mcp_server(registry: ToolRegistry, name: str = "predikit") -> Any:
     return server
 
 
-def _registry_items(registry: ToolRegistry) -> list[Any]:
-    """Return registry members in the same order as the existing exporters."""
-    return list(registry._tools.values()) + list(registry._ensembles.values())
+def _output_fields(tool: Any) -> list[tuple[str, str]]:
+    """Return the (name, description) pairs a tool's result dict is keyed by."""
+    tools = getattr(tool, "tools", None)
+    if tools is not None and getattr(tool, "strategy", None) == "collect":
+        # A collect ensemble merges every member's output into one dict.
+        return [(t.output_name, t.output_description) for t in tools]
+    return [(tool.output_name, tool.output_description)]
+
+
+def _make_output_model(tool: Any) -> Any:
+    """Build the return annotation used to advertise a tool's output schema.
+
+    ``extra="allow"`` matters: it keeps the ``_confidence`` / ``_low_confidence``
+    keys that a low-confidence result carries. A model without it validates them
+    away, so MCP clients would silently lose them.
+    """
+    fields = _output_fields(tool)
+    if not all(name.isidentifier() for name, _ in fields):
+        # Output names are user-supplied; fall back to a permissive mapping.
+        return dict[str, Any]
+    definitions: dict[str, Any] = {
+        name: (Any, Field(..., description=desc)) for name, desc in fields
+    }
+    return create_model(
+        f"{tool.name}_output",
+        __config__=ConfigDict(extra="allow"),
+        **definitions,
+    )
 
 
 def _make_mcp_callable(tool: Any) -> Any:
@@ -61,7 +102,13 @@ def _make_mcp_callable(tool: Any) -> Any:
                 default=default,
             )
         )
-    invoke.__signature__ = inspect.Signature(parameters)  # type: ignore[attr-defined]
+    # FastMCP derives outputSchema from the return annotation. A bare ``dict`` is
+    # not serializable for structured output, so it must be a concrete model.
+    output_model = _make_output_model(tool)
+    annotations["return"] = output_model
+    invoke.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+        parameters, return_annotation=output_model
+    )
     invoke.__annotations__ = annotations
     invoke.__name__ = tool.name
     invoke.__doc__ = tool.description

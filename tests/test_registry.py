@@ -100,3 +100,18 @@ def test_duplicate_tool_and_ensemble_names_raise(registry):
 
     with pytest.raises(ValueError, match="Duplicate"):
         ToolRegistry([tool], ensembles=[ensemble])
+
+
+def test_items_returns_tools_then_ensembles(registry):
+    tool = registry.get("iris_classifier")
+    ensemble = ModelEnsemble(tools=[tool], name="iris_ensemble", description="Ensemble")
+    combined = ToolRegistry([tool], ensembles=[ensemble])
+
+    assert [item.name for item in combined.items()] == ["iris_classifier", "iris_ensemble"]
+    assert combined.names() == ["iris_classifier", "iris_ensemble"]
+    assert len(combined) == 2
+    assert [item.name for item in combined] == ["iris_classifier", "iris_ensemble"]
+
+
+def test_items_matches_export_order(registry):
+    assert [s["function"]["name"] for s in registry.to_openai()] == registry.names()

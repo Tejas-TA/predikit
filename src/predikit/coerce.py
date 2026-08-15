@@ -8,6 +8,10 @@ _BOOL_FALSE = {"false", "0", "no", "off"}
 
 def coerce_value(value: Any, target_type: type) -> Any:
     """Coerce a single value to target_type with LLM-friendly string handling."""
+    if target_type is int and isinstance(value, bool):
+        # isinstance(True, int) is True, so bools would otherwise pass through unconverted.
+        return int(value)
+
     if isinstance(value, target_type):
         return value
 

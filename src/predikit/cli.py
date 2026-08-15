@@ -85,7 +85,19 @@ if _CLICK_AVAILABLE:
         show_default=True,
         help="MCP transport to run.",
     )
-    def serve(registry_target: str, name: str, transport: str) -> None:
+    @click.option(
+        "--host", default=None, help="Bind host for HTTP transports. [default: 127.0.0.1]"
+    )
+    @click.option(
+        "--port", type=int, default=None, help="Bind port for HTTP transports. [default: 8000]"
+    )
+    def serve(
+        registry_target: str,
+        name: str,
+        transport: str,
+        host: str | None,
+        port: int | None,
+    ) -> None:
         """Serve a ToolRegistry from MODULE:ATTRIBUTE over MCP.
 
         ATTRIBUTE may be a ToolRegistry instance or a zero-argument factory.
@@ -93,21 +105,28 @@ if _CLICK_AVAILABLE:
         if ":" not in registry_target:
             raise click.ClickException("REGISTRY_TARGET must use the form MODULE:ATTRIBUTE")
         module_name, attribute_name = registry_target.split(":", 1)
+
+        # Keep this block narrow: it resolves the target only. Errors raised while
+        # building or running the server must surface with their own traceback
+        # rather than be reported as a bad registry target.
         try:
             module = importlib.import_module(module_name)
-            registry = getattr(module, attribute_name)
-            if callable(registry):
-                registry = registry()
-            from .mcp import create_mcp_server
-
-            server = create_mcp_server(registry, name=name)
-            server.run(transport=transport)
         except ImportError as err:
-            raise click.ClickException(str(err)) from err
+            raise click.ClickException(f"Could not import module '{module_name}': {err}") from err
+        try:
+            registry = getattr(module, attribute_name)
         except AttributeError as err:
             raise click.ClickException(
-                f"Could not load registry target '{registry_target}'"
+                f"Module '{module_name}' has no attribute '{attribute_name}'"
             ) from err
+
+        if callable(registry):
+            registry = registry()
+
+        from .mcp import create_mcp_server
+
+        server = create_mcp_server(registry, name=name, host=host, port=port)
+        server.run(transport=transport)
 
 else:
 

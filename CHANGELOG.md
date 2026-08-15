@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-15
+
+### Fixed
+- MCP tools now advertise an `outputSchema` and return `structuredContent`. The generated callable carried no return annotation, so FastMCP emitted `outputSchema: null` and every result came back as unstructured text. Output fields are named from the tool's `output_name` / `output_description`, and a `collect` ensemble declares each member's output.
+- Low-confidence results keep their `_confidence` and `_low_confidence` keys when served over MCP. The output model allows extra keys; a strict one validates them away silently.
+- `predikit serve` no longer disguises unrelated failures as a bad registry target. Module import and attribute lookup are handled separately, and errors raised while building or running the server propagate with their own traceback instead of being reported as `Could not load registry target`.
+- `coerce_value()` converts `True` / `False` to `1` / `0` for `int` fields. `isinstance(True, int)` is true in Python, so bools previously passed through unconverted.
+
+### Added
+- `--host` and `--port` options on `predikit serve`, plus matching `host` / `port` arguments on `create_mcp_server()`. The `streamable-http` transport was previously stuck on the SDK default of `127.0.0.1:8000`.
+- `ToolRegistry.items()`, `.names()`, `__iter__`, and `__len__` as the public way to enumerate a registry. `create_mcp_server()` used the private `_tools` / `_ensembles` attributes; `to_openai()` and `to_langchain()` now share the same accessor.
+- Python 3.13 in the CI matrix and the package classifiers.
+
+### Changed
+- `mcp` is now a dev dependency, so the MCP integration is tested against the real SDK. The previous tests substituted a fake `FastMCP` and reported full coverage of `mcp.py` while never exercising the SDK — which is how the missing output schema shipped.
+- Test coverage for `predikit serve`, which previously had none.
+
 ## [0.6.0] - 2026-08-03
 
 ### Added

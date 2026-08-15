@@ -55,3 +55,14 @@ def test_coerce_inputs_missing_feature_raises():
     meta = {"feature_names": ["x", "y"]}
     with pytest.raises(ValueError, match="missing"):
         coerce_inputs(validated, meta)
+
+
+def test_bool_to_int_is_converted():
+    # isinstance(True, int) is True, so bools must be special-cased.
+    assert coerce_value(True, int) == 1
+    assert coerce_value(False, int) == 0
+    assert not isinstance(coerce_value(True, int), bool)
+
+
+def test_bool_to_bool_is_unchanged():
+    assert coerce_value(True, bool) is True
