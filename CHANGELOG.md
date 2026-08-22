@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-08-22
+
+### Added
+- `py.typed` marker, so type checkers actually consume the annotations. Every module is annotated and mypy-clean, and the package declares the `Typing :: Typed` classifier, but without the PEP 561 marker downstream consumers got no type information at all.
+
+### Changed
+- `from_snowflake()` imports `snowflake.ml.registry` inside the function body instead of at module level, matching `from_mlflow()` and the project's own rule for optional dependencies. The module-level `Registry = None` sentinel is gone.
+- CI lints and format-checks `examples/` alongside `src/` and `tests/`.
+
+### Removed
+- `uv.lock`. Nothing consumed it — CI installs with `pip install -e ".[dev]"` — and a library should not pin its consumers' transitive dependencies.
+- `.claude/settings.local.json` from version control. It holds per-developer machine paths.
+
 ## [0.6.1] - 2026-08-15
 
 ### Fixed

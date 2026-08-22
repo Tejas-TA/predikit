@@ -1,5 +1,7 @@
 """Unit tests for from_snowflake: fully mocked — no Snowflake connection needed."""
 
+import sys
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -87,148 +89,156 @@ class TestSnowflakeShim:
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_session_and_model(return_value):
-    """Return (mock_session, mock_sf_model) wired up through a mock Registry."""
-    mock_session = MagicMock()
+@pytest.fixture
+def mock_registry():
+    """Yield a stand-in ``Registry`` class importable as snowflake.ml.registry.
+
+    snowflake-ml-python is not a test dependency, so the module tree does not
+    exist at all. from_snowflake() imports Registry lazily inside its own body,
+    which makes sys.modules the seam rather than a module attribute.
+    """
+    registry_cls = MagicMock(name="Registry")
+    registry_mod = ModuleType("snowflake.ml.registry")
+    registry_mod.Registry = registry_cls
+    ml_mod = ModuleType("snowflake.ml")
+    ml_mod.registry = registry_mod
+    root_mod = ModuleType("snowflake")
+    root_mod.ml = ml_mod
+
+    with patch.dict(
+        sys.modules,
+        {
+            "snowflake": root_mod,
+            "snowflake.ml": ml_mod,
+            "snowflake.ml.registry": registry_mod,
+        },
+    ):
+        yield registry_cls
+
+
+def _mock_sf_model(return_value):
+    """Return a mock registry model whose predict() yields return_value."""
     mock_sf_model = MagicMock()
     mock_sf_model.predict.return_value = return_value
-    return mock_session, mock_sf_model
+    return mock_sf_model
 
 
 class TestFromSnowflake:
-    def test_roundtrip_invoke(self):
-        mock_session, mock_sf_model = _make_mock_session_and_model(np.array([1]))
+    def test_roundtrip_invoke(self, mock_registry):
+        sf_model = _mock_sf_model(np.array([1]))
+        mock_registry.return_value.get_model.return_value.version.return_value = sf_model
 
-        with patch("predikit.loaders.snowflake.Registry") as MockRegistry:
-            MockRegistry.return_value.get_model.return_value.version.return_value = mock_sf_model
-
-            tool = from_snowflake(
-                session=mock_session,
-                model_name="VACATION_CHURN",
-                model_version="V3",
-                name="churn_risk",
-                description="Predict member churn.",
-                input_schema=MemberInput,
-                output_name="churn_class",
-                output_description="Predicted churn class",
-            )
+        tool = from_snowflake(
+            session=MagicMock(),
+            model_name="VACATION_CHURN",
+            model_version="V3",
+            name="churn_risk",
+            description="Predict member churn.",
+            input_schema=MemberInput,
+            output_name="churn_class",
+            output_description="Predicted churn class",
+        )
 
         result = tool.invoke({"tenure_months": 24.0, "trips_last_year": 2.0, "avg_spend": 500.0})
         assert result == {"churn_class": 1}
 
-    def test_registry_called_with_correct_args(self):
-        mock_session, mock_sf_model = _make_mock_session_and_model(np.array([0]))
-
-        with patch("predikit.loaders.snowflake.Registry") as MockRegistry:
-            mock_registry = MockRegistry.return_value
-            mock_registry.get_model.return_value.version.return_value = mock_sf_model
-
-            from_snowflake(
-                session=mock_session,
-                model_name="VACATION_CHURN",
-                model_version="V3",
-                name="churn_risk",
-                description="Predict churn.",
-                input_schema=MemberInput,
-                output_name="churn_class",
-                output_description="Churn class",
-            )
-
-            MockRegistry.assert_called_once_with(session=mock_session)
-            mock_registry.get_model.assert_called_once_with("VACATION_CHURN")
-            mock_registry.get_model.return_value.version.assert_called_once_with("V3")
-
-    def test_custom_output_method_forwarded(self):
+    def test_registry_called_with_correct_args(self, mock_registry):
         mock_session = MagicMock()
-        mock_sf_model = MagicMock()
-        mock_sf_model.score.return_value = np.array([0.87])
+        sf_model = _mock_sf_model(np.array([0]))
+        registry = mock_registry.return_value
+        registry.get_model.return_value.version.return_value = sf_model
 
-        with patch("predikit.loaders.snowflake.Registry") as MockRegistry:
-            MockRegistry.return_value.get_model.return_value.version.return_value = mock_sf_model
+        from_snowflake(
+            session=mock_session,
+            model_name="VACATION_CHURN",
+            model_version="V3",
+            name="churn_risk",
+            description="Predict churn.",
+            input_schema=MemberInput,
+            output_name="churn_class",
+            output_description="Churn class",
+        )
 
-            tool = from_snowflake(
-                session=mock_session,
-                model_name="SCORE_MODEL",
-                model_version="V1",
-                name="scorer",
-                description="Score members.",
-                input_schema=MemberInput,
-                output_name="score",
-                output_description="Member score",
-                output_method="score",
-            )
+        mock_registry.assert_called_once_with(session=mock_session)
+        registry.get_model.assert_called_once_with("VACATION_CHURN")
+        registry.get_model.return_value.version.assert_called_once_with("V3")
+
+    def test_custom_output_method_forwarded(self, mock_registry):
+        sf_model = MagicMock()
+        sf_model.score.return_value = np.array([0.87])
+        mock_registry.return_value.get_model.return_value.version.return_value = sf_model
+
+        tool = from_snowflake(
+            session=MagicMock(),
+            model_name="SCORE_MODEL",
+            model_version="V1",
+            name="scorer",
+            description="Score members.",
+            input_schema=MemberInput,
+            output_name="score",
+            output_description="Member score",
+            output_method="score",
+        )
 
         result = tool.invoke({"tenure_months": 12.0, "trips_last_year": 5.0, "avg_spend": 300.0})
         assert result["score"] == pytest.approx(0.87, abs=1e-6)
-        mock_sf_model.score.assert_called_once()
+        sf_model.score.assert_called_once()
 
-    def test_confidence_routing_uses_predict_proba(self):
-        mock_session = MagicMock()
-        mock_sf_model = MagicMock()
-        mock_sf_model.predict.return_value = np.array([1])
-        mock_sf_model.predict_proba.return_value = np.array([[0.6, 0.4]])
-        mock_sf_model.classes_ = [0, 1]
+    def test_confidence_routing_uses_predict_proba(self, mock_registry):
+        sf_model = MagicMock()
+        sf_model.predict.return_value = np.array([1])
+        sf_model.predict_proba.return_value = np.array([[0.6, 0.4]])
+        sf_model.classes_ = [0, 1]
+        mock_registry.return_value.get_model.return_value.version.return_value = sf_model
 
-        with patch("predikit.loaders.snowflake.Registry") as MockRegistry:
-            MockRegistry.return_value.get_model.return_value.version.return_value = mock_sf_model
-
-            tool = from_snowflake(
-                session=mock_session,
-                model_name="CHURN",
-                model_version="V1",
-                name="churn",
-                description="Churn.",
-                input_schema=MemberInput,
-                output_name="churn_class",
-                output_description="Churn class",
-                confidence_threshold=0.9,
-                on_low_confidence="warn",
-            )
+        tool = from_snowflake(
+            session=MagicMock(),
+            model_name="CHURN",
+            model_version="V1",
+            name="churn",
+            description="Churn.",
+            input_schema=MemberInput,
+            output_name="churn_class",
+            output_description="Churn class",
+            confidence_threshold=0.9,
+            on_low_confidence="warn",
+        )
 
         result = tool.invoke({"tenure_months": 12.0, "trips_last_year": 5.0, "avg_spend": 300.0})
         assert result["churn_class"] == 1
         assert result["_low_confidence"] is True
         assert result["_confidence"] == pytest.approx(0.6)
-        mock_sf_model.predict_proba.assert_called_once()
+        sf_model.predict_proba.assert_called_once()
 
-    def test_model_tool_kwargs_forwarded(self):
-        mock_session, mock_sf_model = _make_mock_session_and_model(np.array([1]))
+    def test_model_tool_kwargs_forwarded(self, mock_registry):
+        sf_model = _mock_sf_model(np.array([1]))
+        mock_registry.return_value.get_model.return_value.version.return_value = sf_model
 
-        with patch("predikit.loaders.snowflake.Registry") as MockRegistry:
-            MockRegistry.return_value.get_model.return_value.version.return_value = mock_sf_model
-
-            tool = from_snowflake(
-                session=mock_session,
-                model_name="CHURN",
-                model_version="V1",
-                name="churn",
-                description="Churn.",
-                input_schema=MemberInput,
-                output_name="churn_class",
-                output_description="Churn class",
-                classes=[0, 1],
-                confidence_threshold=0.85,
-                on_low_confidence="warn",
-            )
+        tool = from_snowflake(
+            session=MagicMock(),
+            model_name="CHURN",
+            model_version="V1",
+            name="churn",
+            description="Churn.",
+            input_schema=MemberInput,
+            output_name="churn_class",
+            output_description="Churn class",
+            classes=[0, 1],
+            confidence_threshold=0.85,
+            on_low_confidence="warn",
+        )
 
         assert tool.confidence_threshold == 0.85
         assert tool.on_low_confidence == "warn"
 
-    def test_import_error_without_snowflake_ml(self, monkeypatch):
-        import sys
-
-        monkeypatch.setitem(sys.modules, "snowflake", None)
-        monkeypatch.setitem(sys.modules, "snowflake.ml", None)
-        monkeypatch.setitem(sys.modules, "snowflake.ml.registry", None)
-
-        import importlib
-
-        import predikit.loaders.snowflake as sf_mod
-
-        importlib.reload(sf_mod)
-
-        with pytest.raises(ImportError, match="snowflake-ml-python is required"):
-            sf_mod.from_snowflake(
+    def test_import_error_without_snowflake_ml(self):
+        # A None entry in sys.modules makes the import raise, whether or not
+        # snowflake-ml-python happens to be installed in the environment.
+        with (
+            patch.dict(sys.modules, {"snowflake.ml.registry": None}),
+            pytest.raises(ImportError, match="snowflake-ml-python is required"),
+        ):
+            from_snowflake(
                 session=MagicMock(),
                 model_name="X",
                 model_version="V1",

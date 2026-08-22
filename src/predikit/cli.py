@@ -60,7 +60,7 @@ if _CLICK_AVAILABLE:
             click.echo(f"Classes:  {meta['classes']}")
 
         if meta["feature_names"]:
-            fields: dict[str, Any] = {f: (float, ...) for f in meta["feature_names"]}
+            fields: dict[str, Any] = dict.fromkeys(meta["feature_names"], (float, ...))
             input_schema = create_model("Input", **fields)
             tool = ModelTool(
                 model=model,

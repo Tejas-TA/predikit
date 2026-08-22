@@ -35,14 +35,14 @@ pip install -e ".[dev]"
 pytest --cov=src/predikit --cov-report=term-missing
 
 # Lint (check only)
-ruff check src/ tests/
+ruff check src/ tests/ examples/
 
 # Format (check only)
-ruff format --check src/ tests/
+ruff format --check src/ tests/ examples/
 
 # Lint + format (auto-fix)
-ruff check --fix src/ tests/
-ruff format src/ tests/
+ruff check --fix src/ tests/ examples/
+ruff format src/ tests/ examples/
 
 # Type check
 mypy src/predikit

@@ -1,14 +1,33 @@
+# Byte-compiled / cache
 __pycache__/
 *.py[cod]
-*.egg-info/
-dist/
+
+# Distribution / packaging
 build/
-mlruns/
+dist/
+*.egg
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Test coverage
 .coverage
 coverage.xml
 htmlcov/
-.pytest_cache/
-.venv/
-venv/
-*.egg
-file.py
+
+# Serialized models written by examples and CLI tests
+*.joblib
+*.pkl
+
+# MLflow local tracking store
+mlruns/
+
+# Per-developer editor and agent settings
+.claude/settings.local.json

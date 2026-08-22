@@ -30,8 +30,8 @@ This project uses [ruff](https://docs.astral.sh/ruff/) for linting and formattin
 
 ```bash
 # Check and auto-fix
-ruff check --fix src/ tests/
-ruff format src/ tests/
+ruff check --fix src/ tests/ examples/
+ruff format src/ tests/ examples/
 
 # Type check
 mypy src/predikit

@@ -7,11 +7,6 @@ from pydantic import BaseModel
 
 from ..tool import ModelTool
 
-try:
-    from snowflake.ml.registry import Registry
-except ImportError:
-    Registry = None  # type: ignore[assignment,misc]
-
 
 class _SnowflakeShim:
     """Wrap a Snowflake Model Registry model as an sklearn estimator."""
@@ -87,11 +82,13 @@ def from_snowflake(
     Returns:
         A fully configured :class:`~predikit.ModelTool`.
     """
-    if Registry is None:
+    try:
+        from snowflake.ml.registry import Registry
+    except ImportError as exc:
         raise ImportError(
             "snowflake-ml-python is required for from_snowflake(). "
             "Install it with: pip install predikit[snowflake]"
-        )
+        ) from exc
 
     registry = Registry(session=session)
     sf_model = registry.get_model(model_name).version(model_version)
