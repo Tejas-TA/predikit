@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-13
+
+### Fixed
+- Corrected the MCP quick-start command: `predikit serve` requires both the `mcp` and `cli` extras. The MCP library API itself remains available with `predikit[mcp]` alone.
+
+### Changed
+- Polished the README installation guidance and documented MCP HTTP host/port options.
+
 ## [0.6.2] - 2026-08-22
 
 ### Added

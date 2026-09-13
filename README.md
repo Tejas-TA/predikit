@@ -42,6 +42,8 @@ tool.invoke({"sqft": 2200})   # → {"price_usd": 370730}
 - [Core API](#core-api)
 - [Field naming rule](#field-naming-rule)
 - [Cookbook](#cookbook)
+- [Command line](#command-line)
+- [MCP server](#mcp-server)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
@@ -92,6 +94,8 @@ pip install predikit[xgboost]    # XGBoost support
 pip install predikit[langchain]  # LangChain StructuredTool export
 pip install predikit[mlflow]     # MLflow Model Registry loader
 pip install predikit[snowflake]  # Snowflake Model Registry loader
+pip install predikit[cli]        # `predikit inspect` and `predikit serve`
+pip install predikit[mcp,cli]    # serve a registry over MCP
 ```
 
 ---
@@ -276,14 +280,16 @@ agent = initialize_agent(tools=registry.to_langchain(), ...)
 Expose the same registry to MCP-compatible clients with the optional MCP extra:
 
 ```bash
-pip install predikit[mcp]
+pip install predikit[mcp,cli]
 predikit serve my_tools:registry
 ```
 
 `my_tools:registry` must point to a `ToolRegistry`, or to a zero-argument function
 that returns one. The default transport is `stdio`; use `--transport streamable-http`
-when serving over HTTP. MCP tools use the same Pydantic input validation and model
-execution as direct `invoke()` calls.
+when serving over HTTP, optionally with `--host` and `--port`. MCP tools advertise
+their output schemas and use the same Pydantic input validation and model execution
+as direct `invoke()` calls. For an in-process server instead of the CLI, install
+`predikit[mcp]` and call `create_mcp_server(registry)`.
 
 ### Bool inputs from an LLM
 
