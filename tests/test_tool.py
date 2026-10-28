@@ -107,6 +107,26 @@ def test_invoke_optional_scalar_strings_coerced_through_invoke():
     assert tool.invoke({"value": "3.0", "active": "yes"})["result"] in [0, 1]
 
 
+def test_unnamed_model_rejects_schema_with_wrong_feature_count():
+    class TwoFeatureInput(BaseModel):
+        first: float
+        second: float
+
+    X = np.array([[1.0, 0.0, 10.0], [2.0, 1.0, 20.0], [3.0, 0.0, 30.0]])
+    y = np.array([0, 1, 0])
+    clf = LogisticRegression().fit(X, y)
+
+    with pytest.raises(ValueError, match="defines 2 fields, but the model expects 3 features"):
+        ModelTool(
+            model=clf,
+            name="wrong_width",
+            description="test schema width validation",
+            input_schema=TwoFeatureInput,
+            output_name="result",
+            output_description="predicted class",
+        )
+
+
 SAMPLE = {"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}
 
 

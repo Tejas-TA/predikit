@@ -56,6 +56,7 @@ class ModelTool:
         self.output_name = output_name
         self.output_description = output_description
         self._meta = introspect(model)
+        self._validate_schema_compatibility()
         self.confidence_threshold = confidence_threshold
         if confidence_threshold is not None and self._meta.get("task") != "classification":
             warnings.warn(
@@ -78,6 +79,21 @@ class ModelTool:
         self.on_low_confidence = on_low_confidence
         self.fallback_tool = fallback_tool
         self.verbose = verbose
+
+    def _validate_schema_compatibility(self) -> None:
+        """Fail early when an unnamed model and input schema have different widths."""
+        feature_names = self._meta.get("feature_names")
+        n_features = self._meta.get("n_features")
+        if feature_names is not None or n_features is None:
+            return
+
+        schema_features = len(self.input_schema.model_fields)
+        if schema_features != n_features:
+            raise ValueError(
+                f"Input schema for '{self.name}' defines {schema_features} fields, but the "
+                f"model expects {n_features} features. The model was fitted without named "
+                "features, so the schema fields must match the training feature count."
+            )
 
     def invoke(self, input_dict: dict) -> dict:
         """Validate inputs, run prediction, return {output_name: value}."""
