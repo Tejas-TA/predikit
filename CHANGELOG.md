@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-26
+
+### Added
+- Batch inference with `ModelTool.invoke_many()` and `ModelTool.ainvoke_many()`. Batches are
+  validated completely before prediction, preserve input order, call compatible estimators once,
+  and retain confidence-routing behavior for every record.
+- `ModelEnsemble.invoke_many()` and `.ainvoke_many()`, which batch each member model and reconcile
+  the resulting rows with the existing ensemble strategy.
+
 ## [0.6.4] - 2026-10-28
 
 ### Fixed

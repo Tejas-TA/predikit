@@ -41,6 +41,12 @@ tool.invoke({"sqft": 2200})   # → {"price_usd": 370730}
 - [Quick start](#quick-start)
 - [Core API](#core-api)
 - [Field naming rule](#field-naming-rule)
+- [Input validation and coercion](#input-validation-and-coercion)
+- [Batch and async inference](#batch-and-async-inference)
+- [Confidence-aware routing](#confidence-aware-routing)
+- [Multi-model ensembles](#multi-model-ensembles)
+- [Tool registries and exports](#tool-registries-and-exports)
+- [Model registry loaders](#model-registry-loaders)
 - [Cookbook](#cookbook)
 - [Command line](#command-line)
 - [MCP server](#mcp-server)
@@ -155,6 +161,10 @@ ModelTool(
     input_schema,        # Pydantic BaseModel describing inputs
     output_name: str,    # key for the prediction in the returned dict
     output_description: str,
+    confidence_threshold: float | None = None,
+    on_low_confidence: str = "warn",  # "warn" | "raise" | "fallback"
+    fallback_tool: ModelTool | None = None,
+    verbose: bool = False,
 )
 ```
 
@@ -162,6 +172,8 @@ ModelTool(
 |--------|---------|--------------|
 | `.invoke(input_dict)` | `dict` | Validates → predicts → returns `{output_name: value}` |
 | `.ainvoke(input_dict)` | `dict` | Async version of `.invoke()` |
+| `.invoke_many(input_dicts)` | `list[dict]` | Validates and predicts a batch in one model call |
+| `.ainvoke_many(input_dicts)` | `list[dict]` | Async version of `.invoke_many()` |
 | `.to_openai()` | `dict` | OpenAI function-calling schema |
 | `.to_langchain()` | `StructuredTool` | LangChain tool |
 | `.to_callable()` | `Callable` | Plain Python function |
@@ -199,7 +211,34 @@ ModelEnsemble(
 | `"weighted_mean"` | Weighted average — provide a `weights` list |
 | `"weighted_vote"` | Weighted majority vote — provide a `weights` list |
 
-`ModelEnsemble` exposes the same `.invoke()`, `.ainvoke()`, `.to_openai()`, and `.to_langchain()` interface as `ModelTool`.
+`ModelEnsemble` exposes the same `.invoke()`, `.ainvoke()`, `.invoke_many()`, `.ainvoke_many()`, `.to_openai()`, and `.to_langchain()` interface as `ModelTool`.
+
+## Input validation and coercion
+
+Inputs are validated by the Pydantic model before an estimator runs. This produces useful errors
+for missing fields and incompatible values, while common LLM scalar strings are handled before
+validation: numeric strings work for `int` and `float`; boolean fields accept `true/false`,
+`yes/no`, `1/0`, and `on/off`.
+
+For DataFrame-trained models, schema field names must match training columns exactly; predikit
+uses the estimator's feature names to order values. For array-trained models, it verifies the
+schema width and uses schema definition order.
+
+## Batch and async inference
+
+For application-side workloads, pass several input dictionaries at once. predikit validates every
+record before invoking the model, makes one `predict()` call, and returns results in the same order:
+
+```python
+predictions = tool.invoke_many([
+    {"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2},
+    {"sepal_length": 6.0, "sepal_width": 2.2, "petal_length": 4.0, "petal_width": 1.0},
+])
+# → [{"species": 0}, {"species": 1}]
+```
+
+Use `await tool.ainvoke_many(inputs)` in async applications. Ensembles support the same batch
+methods and preserve their configured reconciliation strategy per input.
 
 ---
 
@@ -233,6 +272,34 @@ Schema has: ['square_footage', 'beds', 'bathrooms'], model expects: ['sqft', 'be
 > **Tip:** If you trained with a numpy array (no DataFrame), predikit has no feature names to check — it uses your schema's field definition order instead.
 
 ---
+
+## Tool registries and exports
+
+Use a `ToolRegistry` when an agent needs several models. It rejects duplicate names and exports
+the same complete set of tools and ensembles to OpenAI, LangChain, or MCP. `to_openai()` returns
+OpenAI-compatible function-tool dictionaries built from Pydantic JSON Schema; `to_langchain()`
+returns `StructuredTool` objects with sync and async execution; `to_callable()` returns a normal
+keyword-only Python function.
+
+## Multi-model ensembles
+
+`ModelEnsemble` applies one input to several tools, then reconciles the results. `collect` merges
+distinct outputs; `mean` and `weighted_mean` average numeric outputs; `vote` and `weighted_vote`
+select a class. Aggregate strategies require a shared `output_name`; collect requires unique ones.
+Async ensembles run member tools concurrently, and batch methods reconcile every input row.
+
+## Confidence-aware routing
+
+For classifiers exposing `predict_proba`, `confidence_threshold` adds per-prediction handling:
+`warn` returns `_confidence` and `_low_confidence`, `raise` emits `LowConfidenceError`, and
+`fallback` invokes a second `ModelTool`. Regressors and classifiers without probabilities remain
+usable and warn at construction when this setting cannot apply.
+
+## Model registry loaders
+
+`from_mlflow()` loads an MLflow pyfunc model from a URI, while `from_snowflake()` loads a model
+version with an active Snowpark session. Both return ordinary `ModelTool` objects, so exports,
+ensembles, batches, and confidence routing work unchanged.
 
 ## Cookbook
 
@@ -275,7 +342,7 @@ response = client.chat.completions.create(
 agent = initialize_agent(tools=registry.to_langchain(), ...)
 ```
 
-### MCP server
+## MCP server
 
 Expose the same registry to MCP-compatible clients with the optional MCP extra:
 
@@ -290,6 +357,24 @@ when serving over HTTP, optionally with `--host` and `--port`. MCP tools adverti
 their output schemas and use the same Pydantic input validation and model execution
 as direct `invoke()` calls. For an in-process server instead of the CLI, install
 `predikit[mcp]` and call `create_mcp_server(registry)`.
+
+## Command line
+
+Install `predikit[cli]` for model inspection and MCP serving:
+
+```bash
+# Print model task, feature metadata, and an OpenAI schema for a joblib model.
+predikit inspect path/to/model.joblib --name price_estimate --description "Estimate home price"
+
+# Serve a module-level registry, or a zero-argument registry factory, over MCP stdio.
+predikit serve my_tools:registry
+
+# Serve Streamable HTTP on an explicit interface and port.
+predikit serve my_tools:make_registry --transport streamable-http --host 0.0.0.0 --port 9123
+```
+
+`inspect` can generate a schema for models trained with named DataFrame columns. `serve` defaults
+to stdio and requires `predikit[mcp,cli]`.
 
 ### Bool inputs from an LLM
 
@@ -405,7 +490,7 @@ tool = from_snowflake(
 
 Pass `output_method="predict_proba"` or any other method your Snowflake model exposes. The returned `ModelTool` is identical to one built directly — all exporters, confidence routing, and ensemble strategies work as-is. Requires `pip install predikit[snowflake]`.
 
-### End-to-end demo
+## Examples
 
 See [`examples/03_orlando_real_estate.py`](examples/03_orlando_real_estate.py) for a full walkthrough: synthetic dataset → XGBoost training → `ModelTool` → registry → OpenAI schema → prediction.
 
@@ -424,6 +509,7 @@ See [`examples/03_orlando_real_estate.py`](examples/03_orlando_real_estate.py) f
 - [x] MLflow Model Registry loader
 - [x] Snowflake Model Registry loader
 - [x] `predikit inspect` CLI
+- [x] Batch inference (`invoke_many` / `ainvoke_many`)
 
 ### Planned
 

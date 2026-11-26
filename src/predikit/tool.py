@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from types import UnionType
 from typing import Any, Union, cast, get_args, get_origin
 
@@ -101,21 +101,14 @@ class ModelTool:
             print(f"[predikit] Invoking tool: {self.name}")
             print(f"[predikit] Input dict: {input_dict}")
 
-        pre_coerced = self._pre_coerce(input_dict)
-        try:
-            validated = self.input_schema(**pre_coerced)
-        except Exception as exc:
-            raise ValueError(f"Input validation failed for '{self.name}': {exc}") from exc
-
-        features = coerce_inputs(validated, self._meta)
+        features = self._validate_input(input_dict)
         X = self._to_array(features)
 
         start_time = time.perf_counter()
         prediction = self.model.predict(X)[0]
         duration = (time.perf_counter() - start_time) * 1000
 
-        if hasattr(prediction, "item"):
-            prediction = prediction.item()
+        prediction = _native_value(prediction)
 
         if self.verbose:
             print(f"[predikit] Prediction: {prediction}")
@@ -133,10 +126,65 @@ class ModelTool:
 
         return {self.output_name: prediction}
 
+    def invoke_many(self, input_dicts: Sequence[dict]) -> list[dict]:
+        """Validate and predict a batch of inputs in one estimator call.
+
+        Results preserve input order. Every record is validated before prediction,
+        so malformed input never produces a partial batch result.
+        """
+        if not isinstance(input_dicts, Sequence) or isinstance(input_dicts, (str, bytes)):
+            raise TypeError("input_dicts must be a sequence of dictionaries.")
+        if not input_dicts:
+            return []
+
+        feature_rows = [
+            self._validate_input(item, index=index) for index, item in enumerate(input_dicts)
+        ]
+        X = self._to_array_many(feature_rows)
+        start_time = time.perf_counter()
+        predictions = self.model.predict(X)
+        duration = (time.perf_counter() - start_time) * 1000
+        if len(predictions) != len(input_dicts):
+            raise ValueError(
+                f"Model for '{self.name}' returned {len(predictions)} predictions for "
+                f"{len(input_dicts)} inputs."
+            )
+        results = [{self.output_name: _native_value(value)} for value in predictions]
+
+        if self.verbose:
+            print(f"[predikit] Invoked batch tool: {self.name} ({len(input_dicts)} inputs)")
+            print(f"[predikit] Batch latency: {duration:.2f}ms")
+
+        if (
+            self.confidence_threshold is not None
+            and self._meta["task"] == "classification"
+            and hasattr(self.model, "predict_proba")
+        ):
+            probabilities = self.model.predict_proba(X)
+            if len(probabilities) != len(input_dicts):
+                raise ValueError(
+                    f"Model for '{self.name}' returned {len(probabilities)} probability rows for "
+                    f"{len(input_dicts)} inputs."
+                )
+            for index, (input_dict, result, proba) in enumerate(
+                zip(input_dicts, results, probabilities, strict=True)
+            ):
+                confidence = float(max(proba))
+                if confidence < self.confidence_threshold:
+                    results[index] = self._handle_low_confidence(
+                        input_dict, result[self.output_name], confidence
+                    )
+        return results
+
     async def ainvoke(self, input_dict: dict) -> dict:
         """Async version of invoke(); runs the blocking call in a thread pool."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self.invoke, input_dict)
+
+    async def ainvoke_many(self, input_dicts: Sequence[dict]) -> list[dict]:
+        """Async version of :meth:`invoke_many`."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.invoke_many, input_dicts)
 
     def to_openai(self) -> dict:
         """Return an OpenAI function-calling schema dict."""
@@ -182,6 +230,18 @@ class ModelTool:
                 result[k] = v
         return result
 
+    def _validate_input(self, input_dict: dict, index: int | None = None) -> list:
+        if not isinstance(input_dict, dict):
+            location = f" at index {index}" if index is not None else ""
+            raise TypeError(f"Input for '{self.name}'{location} must be a dictionary.")
+        pre_coerced = self._pre_coerce(input_dict)
+        try:
+            validated = self.input_schema(**pre_coerced)
+        except Exception as exc:
+            location = f" at index {index}" if index is not None else ""
+            raise ValueError(f"Input validation failed for '{self.name}'{location}: {exc}") from exc
+        return coerce_inputs(validated, self._meta)
+
     def _to_array(self, features: list) -> Any:
         feature_names = self._meta.get("feature_names")
         if feature_names:
@@ -192,6 +252,17 @@ class ModelTool:
             except ImportError:
                 pass
         return np.array([features])
+
+    def _to_array_many(self, feature_rows: list[list]) -> Any:
+        feature_names = self._meta.get("feature_names")
+        if feature_names:
+            try:
+                import pandas as pd
+
+                return pd.DataFrame(feature_rows, columns=feature_names)
+            except ImportError:
+                pass
+        return np.array(feature_rows)
 
 
 def _scalar_type(annotation: Any) -> type | None:
@@ -204,3 +275,8 @@ def _scalar_type(annotation: Any) -> type | None:
             return _scalar_type(args[0])
 
     return None
+
+
+def _native_value(value: Any) -> Any:
+    """Convert NumPy scalar results to standard Python values."""
+    return value.item() if hasattr(value, "item") else value

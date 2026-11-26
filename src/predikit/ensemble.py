@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from .exporters.langchain import to_langchain_tool
@@ -68,10 +68,22 @@ class ModelEnsemble:
         """Call all tools and reconcile outputs using the configured strategy."""
         return self._reconcile([t.invoke(input_dict) for t in self.tools])
 
+    def invoke_many(self, input_dicts: Sequence[dict]) -> list[dict]:
+        """Run each member over a batch and reconcile each input's results."""
+        member_results = [tool.invoke_many(input_dicts) for tool in self.tools]
+        return [self._reconcile(list(results)) for results in zip(*member_results, strict=True)]
+
     async def ainvoke(self, input_dict: dict) -> dict:
         """Call all tools concurrently and reconcile outputs using the configured strategy."""
         results = await asyncio.gather(*[t.ainvoke(input_dict) for t in self.tools])
         return self._reconcile(list(results))
+
+    async def ainvoke_many(self, input_dicts: Sequence[dict]) -> list[dict]:
+        """Async batch inference, running ensemble members concurrently."""
+        member_results = await asyncio.gather(
+            *[tool.ainvoke_many(input_dicts) for tool in self.tools]
+        )
+        return [self._reconcile(list(results)) for results in zip(*member_results, strict=True)]
 
     def _reconcile(self, results: list[dict]) -> dict:
         if self.strategy == "collect":
