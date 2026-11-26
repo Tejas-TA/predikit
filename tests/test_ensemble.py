@@ -18,6 +18,10 @@ class IrisInput(BaseModel):
     petal_width: float
 
 
+class IncompleteIrisInput(BaseModel):
+    sepal_length: float
+
+
 @pytest.fixture
 def clf_tools():
     return [
@@ -127,6 +131,29 @@ def test_aggregate_strategy_mismatched_output_names_raises():
 def test_empty_tools_raises():
     with pytest.raises(ValueError, match="at least one tool"):
         ModelEnsemble(tools=[], name="e", description="")
+
+
+def test_mismatched_input_fields_raise():
+    clf = LogisticRegression(max_iter=200).fit(X, y)
+    one_feature_regressor = LinearRegression().fit(X[:, :1], y.astype(float))
+    tool_a = ModelTool(
+        model=clf,
+        name="complete",
+        description="",
+        input_schema=IrisInput,
+        output_name="species",
+        output_description="",
+    )
+    tool_b = ModelTool(
+        model=one_feature_regressor,
+        name="incomplete",
+        description="",
+        input_schema=IncompleteIrisInput,
+        output_name="species",
+        output_description="",
+    )
+    with pytest.raises(ValueError, match="same input fields"):
+        ModelEnsemble(tools=[tool_a, tool_b], name="e", description="", strategy="vote")
 
 
 def test_to_openai_schema(clf_tools):

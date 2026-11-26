@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 from .ensemble import ModelEnsemble
 from .tool import ModelTool
@@ -45,8 +46,8 @@ class ToolRegistry:
     def __len__(self) -> int:
         return len(self._tools) + len(self._ensembles)
 
-    def to_openai(self) -> list[dict]:
+    def to_openai(self) -> list[dict[str, Any]]:
         return [item.to_openai() for item in self.items()]
 
-    def to_langchain(self) -> list:
+    def to_langchain(self) -> list[Any]:
         return [item.to_langchain() for item in self.items()]

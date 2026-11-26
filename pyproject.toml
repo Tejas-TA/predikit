@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "predikit"
-version = "0.7.0"
+dynamic = ["version"]
 description = "Wrap any trained sklearn/XGBoost model as an LLM-callable tool: auto-generated JSON schemas, Pydantic I/O, OpenAI & LangChain ready, zero boilerplate."
 readme = "README.md"
 license = {text = "MIT"}
@@ -72,6 +72,9 @@ Changelog = "https://github.com/Tejas-TA/predikit/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/predikit"]
+
+[tool.hatch.version]
+path = "src/predikit/__init__.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

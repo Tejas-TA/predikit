@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import warnings
 from collections.abc import Callable, Sequence
@@ -8,7 +9,7 @@ from types import UnionType
 from typing import Any, Union, cast, get_args, get_origin
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from .coerce import coerce_inputs, coerce_value
 from .exceptions import LowConfidenceError
@@ -19,6 +20,7 @@ from .introspect import introspect
 _VALID_ON_LOW_CONFIDENCE = {"warn", "raise", "fallback"}
 _SCALAR_TYPES = (bool, int, float, str)
 _NONE_TYPE = type(None)
+logger = logging.getLogger(__name__)
 
 
 class ModelTool:
@@ -95,11 +97,10 @@ class ModelTool:
                 "features, so the schema fields must match the training feature count."
             )
 
-    def invoke(self, input_dict: dict) -> dict:
+    def invoke(self, input_dict: dict[str, Any]) -> dict[str, Any]:
         """Validate inputs, run prediction, return {output_name: value}."""
         if self.verbose:
-            print(f"[predikit] Invoking tool: {self.name}")
-            print(f"[predikit] Input dict: {input_dict}")
+            logger.info("Invoking tool %s with input %s", self.name, input_dict)
 
         features = self._validate_input(input_dict)
         X = self._to_array(features)
@@ -111,8 +112,7 @@ class ModelTool:
         prediction = _native_value(prediction)
 
         if self.verbose:
-            print(f"[predikit] Prediction: {prediction}")
-            print(f"[predikit] Latency: {duration:.2f}ms")
+            logger.info("Tool %s predicted %s in %.2f ms", self.name, prediction, duration)
 
         if (
             self.confidence_threshold is not None
@@ -126,7 +126,7 @@ class ModelTool:
 
         return {self.output_name: prediction}
 
-    def invoke_many(self, input_dicts: Sequence[dict]) -> list[dict]:
+    def invoke_many(self, input_dicts: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         """Validate and predict a batch of inputs in one estimator call.
 
         Results preserve input order. Every record is validated before prediction,
@@ -152,8 +152,12 @@ class ModelTool:
         results = [{self.output_name: _native_value(value)} for value in predictions]
 
         if self.verbose:
-            print(f"[predikit] Invoked batch tool: {self.name} ({len(input_dicts)} inputs)")
-            print(f"[predikit] Batch latency: {duration:.2f}ms")
+            logger.info(
+                "Batch tool %s processed %d inputs in %.2f ms",
+                self.name,
+                len(input_dicts),
+                duration,
+            )
 
         if (
             self.confidence_threshold is not None
@@ -176,12 +180,12 @@ class ModelTool:
                     )
         return results
 
-    async def ainvoke(self, input_dict: dict) -> dict:
+    async def ainvoke(self, input_dict: dict[str, Any]) -> dict[str, Any]:
         """Async version of invoke(); runs the blocking call in a thread pool."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self.invoke, input_dict)
 
-    async def ainvoke_many(self, input_dicts: Sequence[dict]) -> list[dict]:
+    async def ainvoke_many(self, input_dicts: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         """Async version of :meth:`invoke_many`."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self.invoke_many, input_dicts)
@@ -194,17 +198,19 @@ class ModelTool:
         """Return a LangChain StructuredTool."""
         return to_langchain_tool(self)
 
-    def to_callable(self) -> Callable[..., dict]:
+    def to_callable(self) -> Callable[..., dict[str, Any]]:
         """Return a plain Python function that calls invoke()."""
 
-        def _fn(**kwargs) -> dict:
+        def _fn(**kwargs: Any) -> dict[str, Any]:
             return self.invoke(kwargs)
 
         _fn.__name__ = self.name
         _fn.__doc__ = self.description
         return _fn
 
-    def _handle_low_confidence(self, input_dict: dict, prediction: Any, confidence: float) -> dict:
+    def _handle_low_confidence(
+        self, input_dict: dict[str, Any], prediction: Any, confidence: float
+    ) -> dict[str, Any]:
         if self.on_low_confidence == "raise":
             raise LowConfidenceError(
                 f"'{self.name}' confidence {confidence:.3f} is below threshold {self.confidence_threshold:.3f}"
@@ -213,7 +219,7 @@ class ModelTool:
             return self.fallback_tool.invoke(input_dict)
         return {self.output_name: prediction, "_confidence": confidence, "_low_confidence": True}
 
-    def _pre_coerce(self, input_dict: dict) -> dict:
+    def _pre_coerce(self, input_dict: dict[str, Any]) -> dict[str, Any]:
         # Runs coerce_value before Pydantic so LLM strings like "yes"/"no" work for bool fields.
         fields = self.input_schema.model_fields
         result = {}
@@ -230,19 +236,19 @@ class ModelTool:
                 result[k] = v
         return result
 
-    def _validate_input(self, input_dict: dict, index: int | None = None) -> list:
+    def _validate_input(self, input_dict: dict[str, Any], index: int | None = None) -> list[Any]:
         if not isinstance(input_dict, dict):
             location = f" at index {index}" if index is not None else ""
             raise TypeError(f"Input for '{self.name}'{location} must be a dictionary.")
         pre_coerced = self._pre_coerce(input_dict)
         try:
             validated = self.input_schema(**pre_coerced)
-        except Exception as exc:
+        except ValidationError as exc:
             location = f" at index {index}" if index is not None else ""
             raise ValueError(f"Input validation failed for '{self.name}'{location}: {exc}") from exc
         return coerce_inputs(validated, self._meta)
 
-    def _to_array(self, features: list) -> Any:
+    def _to_array(self, features: list[Any]) -> Any:
         feature_names = self._meta.get("feature_names")
         if feature_names:
             try:
@@ -253,7 +259,7 @@ class ModelTool:
                 pass
         return np.array([features])
 
-    def _to_array_many(self, feature_rows: list[list]) -> Any:
+    def _to_array_many(self, feature_rows: list[list[Any]]) -> Any:
         feature_names = self._meta.get("feature_names")
         if feature_names:
             try:

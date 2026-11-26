@@ -171,6 +171,13 @@ def test_zero_total_weight_raises(reg_tools):
         )
 
 
+def test_weights_require_a_weighted_strategy(reg_tools):
+    with pytest.raises(ValueError, match="only valid"):
+        ModelEnsemble(
+            tools=reg_tools, name="e", description="", strategy="mean", weights=[1.0, 1.0]
+        )
+
+
 def test_invalid_strategy_raises_at_init(reg_tools):
     with pytest.raises(ValueError, match="Unknown strategy"):
         ModelEnsemble(tools=reg_tools, name="e", description="", strategy="bad")

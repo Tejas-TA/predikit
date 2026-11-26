@@ -7,6 +7,8 @@ build/
 dist/
 *.egg
 *.egg-info/
+# Applications should lock their dependencies; this library intentionally does not.
+uv.lock
 
 # Virtual environments
 .venv/
