@@ -1,5 +1,6 @@
-"""Tests for ModelTool(verbose=True) diagnostic output."""
+"""Tests for ModelTool(verbose=True) diagnostic logging."""
 
+import logging
 from unittest.mock import MagicMock
 
 from pydantic import BaseModel
@@ -26,16 +27,17 @@ def _verbose_tool():
     )
 
 
-def test_verbose_prints_invocation_prediction_and_latency(capsys):
+def test_verbose_logs_invocation_prediction_and_latency(caplog):
+    caplog.set_level(logging.INFO, logger="predikit.tool")
     _verbose_tool().invoke({"feature1": 10.0, "feature2": 20.0})
 
-    captured = capsys.readouterr()
-    assert "[predikit] Invoking tool: test_tool" in captured.out
-    assert "[predikit] Prediction: 1" in captured.out
-    assert "Latency" in captured.out
+    messages = caplog.messages
+    assert "Invoking tool test_tool with input {'feature1': 10.0, 'feature2': 20.0}" in messages
+    assert any("Tool test_tool predicted 1 in" in message for message in messages)
 
 
-def test_quiet_by_default(capsys):
+def test_quiet_by_default(caplog):
+    caplog.set_level(logging.INFO, logger="predikit.tool")
     mock_model = MagicMock()
     mock_model.predict.return_value = [1]
     tool = ModelTool(
@@ -49,4 +51,4 @@ def test_quiet_by_default(capsys):
 
     tool.invoke({"feature1": 10.0, "feature2": 20.0})
 
-    assert capsys.readouterr().out == ""
+    assert caplog.messages == []
